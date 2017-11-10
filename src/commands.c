@@ -96,23 +96,15 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
           }
         }
 	else if(pid>0){
- 	 printf("status: %d\n",status);
-         if(WIFSIGNALED(status)){
-	 printf("ERROR\n");
-	}
-	 if(background==1){
-          printf("%d\n",(int)getpid());
- 	//         wait(&status);
-          if(WIFEXITED(status)){
-          printf("asdf\n"); 
-          }
-	  wait(&status);}
- 	 else{
-	  printf("pid: %d\n",pid);
-          waitpid(pid,&status,0);
+         printf("status: %d\n",status);
+         printf("%d\n",(int)getpid());
+         if(WIFEXITED(status)) 
+          printf("OK: Child exited with exit status %d.\n",WEXITSTATUS(status));
+         else
+          printf("ERROR: child has not terminated correctly.\n");
+	 waitpid(pid,&status,0);
         }
        }
-      }
      }
   return 0;
 }
@@ -147,6 +139,8 @@ void sigchld_handler(int sig){
 
  while((cpid=waitpid(-1,&status,WNOHANG|WUNTRACED))>0){
  //standard finish
+ printf("tmp\n");
+ printf("%d\n",WIFEXITED(status));
  if((WIFEXITED(status))>0){
   if(1)
    printf("Normal Terminate");
