@@ -10,7 +10,8 @@ void catch_sigint(int signalNo)
 }
 
 void catch_sigtstp(int signalNo)
-{
-  printf("b");
+{ 
+  if(signalNo==SIGTSTP)
+  printf("b\n");
   // TODO: File this!
 }

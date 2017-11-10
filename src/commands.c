@@ -14,6 +14,9 @@
 #include "built_in.h"
 #include "signal_handlers.h"
 
+
+
+
 static struct built_in_command built_in_commands[] = {
   { "cd", do_cd, validate_cd_argv },
   { "pwd", do_pwd, validate_pwd_argv },
@@ -44,13 +47,12 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
     struct single_command* com = (*commands);
 
     assert(com->argc != 0);
-    int built_in_pos = is_built_in_command(com->argv[0]);
+  
+   int built_in_pos = is_built_in_command(com->argv[0]);
    if(strcmp(com->argv[com->argc-1],"&")==0){
-     background+=1;
-     if(!com->argc==1)
-      com->argv[com->argc-1]=NULL;
-    }
-
+      background+=1;
+       com->argv[com->argc-1]=NULL;
+  }
     if (built_in_pos != -1) {
       if (built_in_commands[built_in_pos].command_validate(com->argc, com->argv)) {
 	 if (built_in_commands[built_in_pos].command_do(com->argc, com->argv) != 0) {
@@ -74,40 +76,44 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 	if(pid==0)
 	{
 	  if(execv(com->argv[0],com->argv)==-1){
-//	   printf(com->argv[0]);
-	   if(!strcmp(com->argv[0],"ls")){
-            char str[50]="/bin/";
-            strcat(str,com->argv[0]);
-	    com->argv[0]=str;
-            execv(com->argv[0],com->argv);
+	   char str[5][50]={"/usr/local/bin/","/usr/bin/","/bin/","/usr/sbin/","/sbin/"};
+           for(int i=0;i<5;i++){
+	    char tmp[50];
+	    strcpy(tmp,com->argv[0]);
+    	    strcat(str[i],tmp);
+	    com->argv[0]=str[i];
+
+	    if(!execv(com->argv[0],com->argv)==-1){
+            
+            }else if(i==4&&execv(com->argv[0],com->argv)==-1){
+	      com->argv[0]=tmp;
+	      fprintf(stderr,"%s: command not found!\n",com->argv[0]);
+	      exit(0);
+	     }else{
+	      com->argv[0]=tmp;
+	     }
            }
-	   else if(!strcmp(com->argv[0],"vim")){
- 	    char str[50]="/usr/bin/";
- 	    strcat(str,com->argv[0]);
-	    com->argv[0]=str;
-	    execv(com->argv[0],com->argv);
-	   }
-	   else if(!strcmp(com->argv[0],"cat")){
-	    char str[50]="/bin/";
-	    strcat(str,com->argv[0]);
-	    com->argv[0]=str;
-	    execv(com->argv[0],com->argv);
-	   }
-	  fprintf(stderr,"%s: command not found!!\n", com->argv[0]);
-          exit(0); 
-	  }
-	}
+          }
+        }
 	else if(pid>0){
-	 if(background==1)
+ 	 printf("status: %d\n",status);
+         if(WIFSIGNALED(status)){
+	 printf("ERROR\n");
+	}
+	 if(background==1){
           printf("%d\n",(int)getpid());
-	// printf("parent:%d\n",(int)getppid());
-	// printf("child:%d\n",(int)getpid());
-	// printf("Parent: wait (%d)\n",pid);
- 	 waitpid(pid,&status,0);
+ 	//         wait(&status);
+          if(WIFEXITED(status)){
+          printf("asdf\n"); 
+          }
+	  wait(&status);}
+ 	 else{
+	  printf("pid: %d\n",pid);
+          waitpid(pid,&status,0);
         }
        }
       }
-    
+     }
   return 0;
 }
 
@@ -127,53 +133,29 @@ void free_commands(int n_commands, struct single_command (*commands)[512])
 
   memset((*commands), 0, sizeof(struct single_command) * n_commands);
 }
+void addjob(struct single_command (*commands)[512],pid_t pid, int state){
+ struct single_command *com =(*commands);
+// if(state
 
-void communication_server(){
- int server_socket;
- int client_socket;
- int client_addr_size;
- int opt;
- int buff_rcv[1029];
- int buff_snd[1029];
- struct sockaddr_un server_addr;
- struct sockaddr_un client_addr;
- 
- if(access("/tmp/test_server",F_OK)==0)
- unlink("/tmp/test_server");
- 
- server_socket=socket(PF_FILE,SOCK_STREAM,0);
- if(server_socket==-1){
- printf("server socket fail!");
- exit(1);
- }
- memset(&server_addr,0,sizeof(server_addr));
- server_addr.sun_family=AF_UNIX;
- strcpy(server_addr.sun_path,"/tmp/test_server");
 
- if(-1==bind(server_socket,(struct sockaddr*)&server_addr,sizeof(server_addr))){
- printf("binding execution error");
- exit(1);
- }
 
- while(1){
-  if(listen(server_socket,5)==-1){
-   printf("waiting mode setting fail\n");
-   exit(1);
+}
+
+void sigchld_handler(int sig){
+ int status;
+ pid_t cpid;
+
+ while((cpid=waitpid(-1,&status,WNOHANG|WUNTRACED))>0){
+ //standard finish
+ if((WIFEXITED(status))>0){
+  if(1)
+   printf("Normal Terminate");
+ }else if((WIFSIGNALED(status))!=0){
+   if((WTERMSIG(status)==2)){
+   printf("terminated by signal sigint\n");
+   }else if((WIFSTOPPED(status))==10){
+    printf("Stop by signal sigstsp\n");
    }
-   client_addr_size=sizeof(client_addr);
-   client_socket=accept(server_socket,(struct sockaddr*)&client_addr,&client_addr_size);
-  
- if(client_socket==-1){
-  printf("FAIL! Can't accept client connection");
-  exit(1);
- }
-
- read(client_socket,buff_rcv,1024);
- printf("receive:%s\n",buff_rcv);
- 
- sprintf(buff_snd,"%d:%s", strlen(buff_rcv),buff_rcv);
- write(client_socket,buff_snd,strlen(buff_snd)+1);
- close(client_socket);
-
+  }
  }
 }

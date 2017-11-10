@@ -14,8 +14,10 @@ int main()
   char buf[8096];
 
   while (1) {
+
     signal(SIGINT,(void*)catch_sigint);
     signal(SIGTSTP,(void*)catch_sigtstp);
+    signal(SIGCHLD,(void*)sigchld_handler);
     fgets(buf, 8096, stdin);
 
     struct single_command commands[512];
