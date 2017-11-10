@@ -38,12 +38,19 @@ static int is_built_in_command(const char* command_name)
  */
 int evaluate_command(int n_commands, struct single_command (*commands)[512])
 {
+  int background=0;
+
   if (n_commands > 0) {
     struct single_command* com = (*commands);
 
     assert(com->argc != 0);
-
     int built_in_pos = is_built_in_command(com->argv[0]);
+   if(strcmp(com->argv[com->argc-1],"&")==0){
+     background+=1;
+     if(!com->argc==1)
+      com->argv[com->argc-1]=NULL;
+    }
+
     if (built_in_pos != -1) {
       if (built_in_commands[built_in_pos].command_validate(com->argc, com->argv)) {
 	 if (built_in_commands[built_in_pos].command_do(com->argc, com->argv) != 0) {
@@ -61,13 +68,13 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
      // fprintf(stderr, "%s: command not found\n", com->argv[0]);
      // return -1;
 	int status;
-    	int background;
+
 	pid_t pid=fork();
 	
 	if(pid==0)
 	{
 	  if(execv(com->argv[0],com->argv)==-1){
-	   printf(com->argv[0]);
+//	   printf(com->argv[0]);
 	   if(!strcmp(com->argv[0],"ls")){
             char str[50]="/bin/";
             strcat(str,com->argv[0]);
@@ -75,25 +82,27 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
             execv(com->argv[0],com->argv);
            }
 	   else if(!strcmp(com->argv[0],"vim")){
-	   char str[50]="/usr/bin/";
-	   strcat(str,com->argv[0]);
-	   com->argv[0]=str;
-	   execv(com->argv[0],com->argv);
+ 	    char str[50]="/usr/bin/";
+ 	    strcat(str,com->argv[0]);
+	    com->argv[0]=str;
+	    execv(com->argv[0],com->argv);
 	   }
 	   else if(!strcmp(com->argv[0],"cat")){
-	   char str[50]="/bin/";
-	   strcat(str,com->argv[0]);
-	   com->argv[0]=str;
-	   execv(com->argv[0],com->argv);
+	    char str[50]="/bin/";
+	    strcat(str,com->argv[0]);
+	    com->argv[0]=str;
+	    execv(com->argv[0],com->argv);
 	   }
-	  fprintf(stderr,"%s: command not found\n", com->argv[0]);
+	  fprintf(stderr,"%s: command not found!!\n", com->argv[0]);
           exit(0); 
 	  }
 	}
 	else if(pid>0){
-
-	 printf("child:%d\n",(int)getpid());
-	 printf("Parent: wait (%d)\n",pid);
+	 if(background==1)
+          printf("%d\n",(int)getpid());
+	// printf("parent:%d\n",(int)getppid());
+	// printf("child:%d\n",(int)getpid());
+	// printf("Parent: wait (%d)\n",pid);
  	 waitpid(pid,&status,0);
         }
        }
