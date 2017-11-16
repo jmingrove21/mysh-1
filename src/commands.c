@@ -4,21 +4,28 @@
 #include <assert.h>
 #include <unistd.h>
 #include <signal.h>
-
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
 #include "commands.h"
 #include "built_in.h"
 #include "signal_handlers.h"
+
+#define SOCK_PATH "tpf_unix_sock.server"
+#define SERVER_PATH "ptf_unix_sock.server"
+#define CLIENT_PATH "tpf_unix_sock.client"
+#define DATA "Hello from server"
+#define DATA1 "Hello from Client"
 
 int sig_pid;//use running program+signal
 int pid_save;//save background pid
 int background=0;
 char bg_command[50]="";
 char bg_status[50]="";
+
 static struct built_in_command built_in_commands[] = {
   { "cd", do_cd, validate_cd_argv },
   { "pwd", do_pwd, validate_pwd_argv },
@@ -102,7 +109,7 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 				 if(execv(long_path,com->argv)==-1){
 				    fprintf(stderr,"%s: command not found!\n",com->argv[0]);
 					 exit(0);
-				}
+				}else{}
 			 }else{
 				 printf("background already exist!!: [1]:%d\n",pid_save);
 				 exit(0);
@@ -182,3 +189,175 @@ void handler(int sig){
 		strcpy(bg_status,"RUNNING");
 	}
 }
+
+void server(){
+	int server_sock,client_sock,len,rc;
+	int bytes_rec=0;
+	struct sockaddr_un server_sockaddr;
+	struct sockaddr_un client_sockaddr;
+	char buf[256];
+	int backlog=10;
+
+	memset(&server_sockaddr,0,sizeof(struct sockaddr_un));
+	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
+
+	//create a unix domain stream socket
+	server_sock=socket(AF_UNIX,SOCK_STREAM,0);
+	if(server_sock==-1){
+		printf("SOCKET ERROR\n");
+			exit(1);
+	}
+
+	//set up the unix sockaddr structure by using AF_UNIX for the family and giving it a filepath to bind to
+	//unlink the file so the bind will succeed, then bind to that file
+	server_sockaddr.sun_family=AF_UNIX;
+	strcpy(server_sockaddr.sun_path,SOCK_PATH);
+	len=sizeof(server_sockaddr);
+
+	unlink(SOCK_PATH);
+	rc=bind(server_sock,(struct sockaddr *) &server_sockaddr,len);
+	if(rc==-1){
+		printf("BIND ERROR\n");
+		close(server_sock);
+		exit(1);
+	}
+
+	//Listen for any client socket
+	rc=listen(server_sock,backlog);
+	if(rc==-1){
+		printf("LISTEN ERROR\n");
+		close(server_sock);
+		exit(1);
+	}
+	printf("socket listening...\n");
+
+	//accept an incoming connection
+	client_sock=accept(server_sock,(struct sockaddr*)&client_sockaddr,&len);
+	if(client_sock==-1){
+		printf("ACCEPT ERROR\n");
+		close(server_sock);
+		close(client_sock);
+		exit(1);
+	}
+
+	//get the name of the connected socket
+	len=sizeof(client_sockaddr);
+	rc=getpeername(client_sock,(struct sockaddr*)&client_sockaddr,&len);
+	if(rc==-1){
+		printf("GETPEERNAME ERROR\n");
+		close(server_sock);
+		close(client_sock);
+		exit(1);
+	}
+	else{
+		printf("Client socket filepath:%s\n",client_sockaddr.sun_path);
+	}
+
+	//read and print the data incoming on the connected socket
+	printf("waiting to read...\n");
+	bytes_rec=recv(client_sock,buf,sizeof(buf),0);
+	if(bytes_rec==-1){
+		printf("RECV ERROR\n");
+		close(server_sock);
+		close(client_sock);
+		exit(1);
+	}
+	else{
+		printf("DATA RECEIVED = %s\n",buf);
+	}
+
+	//send data back to the connected socket
+	//need?
+	memset(buf,0,256);
+	strcpy(buf,DATA);
+	printf("sending data...\n");
+	rc=send(client_sock,buf,strlen(buf),0);
+	if(rc==-1){
+		printf("SEND ERROR\n");
+		close(server_sock);
+		close(client_sock);
+		exit(1);
+	}
+	else{
+		printf("Data sent!\n");
+	}
+
+	//close the sockets and exit
+	close(server_sock);
+	close(client_sock);
+	return 0;
+}
+
+void client(){
+	int client_sock,rc,len;
+	struct sockaddr_un server_sockaddr;
+	struct sockaddr_un client_sockaddr;
+	char buf[256];
+	memset(&server_sockaddr,0,sizeof(struct sockaddr_un));
+	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
+   
+	//create a unix domain stream socket
+	client_sock=socket(AF_UNIX,SOCK_STREAM,0);
+	if(client_sock==-1){
+			printf("SOCKET ERROR\n");
+			exit(1);
+	}
+
+	//set up the unix sockaddr structure by using AF_UNIX for the family and giving it a filepath to bind to. 
+	//unlink the file so the bind will succeed, then bind to that file
+	client_sockaddr.sun_family=AF_UNIX;
+	strcpy(client_sockaddr.sun_path,CLIENT_PATH);
+	len=sizeof(client_sockaddr);
+
+	unlink(CLIENT_PATH);
+	rc=bind(client_sock,(struct sockaddr*)&client_sockaddr,len);
+	if(rc==-1){
+		printf("BIND ERROR\n");
+		close(client_sock);
+		exit(1);
+	}
+
+	//set up the unix sockaddr structure for the server socket and connect to it
+	server_sockaddr.sun_family=AF_UNIX;
+	strcpy(server_sockaddr.sun_path,SERVER_PATH);
+	rc=connect(client_sock,(struct sockaddr*)&server_sockaddr,len);
+	if(rc==-1){
+		printf("CONNECT ERROR\n");
+		close(client_sock);
+		exit(1);
+	}
+
+	//copy the data to the buffer and send it to the server socket
+	//need?
+	strcpy(buf,DATA1);
+	printf("Sending data...\n");
+	rc=send(client_sock,buf,strlen(buf),0);
+	if(rc==-1){
+		printf("SEND ERROR\n");
+		close(client_sock);
+		exit(1);
+	}
+	else{
+		printf("Data sent!\n");
+	}
+
+	//read the data sent from the server and print it
+  //need?
+	printf("Waiting to recieve data...\n");
+	memset(buf,0,sizeof(buf));
+	if(rc==-1){
+		printf("RECV ERROR\n");
+		close(client_sock);
+		exit(1);
+	}
+	else{
+		printf("DATA RECEIVED=%s\n",buf);
+	}
+	//close the socket and exit
+  //need?fin
+	close(client_sock);
+	return 0;
+}
+
+
+
