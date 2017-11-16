@@ -10,22 +10,18 @@
 
 
 int main()
-{
+{  
   char buf[8096];
-
   while (1) {
     if(buf[0]!=NULL)
      buf[0]=NULL;
-    signal(SIGINT,(void*)catch_sigint);
-    signal(SIGTSTP,(void*)catch_sigtstp);
+    signal(SIGINT,SIG_IGN);
+    signal(SIGTSTP,SIG_IGN);
     fgets(buf, 8096, stdin);
-
     struct single_command commands[512];
     int n_commands = 0;
     mysh_parse_command(buf, &n_commands, &commands);
-
     int ret = evaluate_command(n_commands, &commands);
-
     free_commands(n_commands, &commands);
     n_commands = 0;
 
@@ -33,6 +29,5 @@ int main()
       break;
     }
   }
-
   return 0;
 }

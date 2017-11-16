@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <string.h>
-
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <linux/limits.h>
-
+#include <sys/types.h>
+#include <sys/wait.h>
+#include "commands.h"
 #include "built_in.h"
-
+#include "signal_handlers.h"
 int do_cd(int argc, char** argv) {
   if (!validate_cd_argv(argc, argv))
     return -1;
@@ -35,9 +37,21 @@ int do_pwd(int argc, char** argv) {
 int do_fg(int argc, char** argv) {
   if (!validate_fg_argv(argc, argv))
     return -1;
+  if(pid_save!=0){
+		if(strcmp(bg_status,"RUNNING")==0){
+			int status;
+         printf("%d  %s     %s  \n",pid_save,bg_status,bg_command);
+			signal(SIGTSTP,(void*)catch_sigtstp);
+			waitpid(pid_save,&status,0);
+				strcpy(bg_status,"Done");
+		}
 
-  // TODO: Fill this.
-
+		printf("%d  %s     %s  \n",pid_save,bg_status,bg_command); 
+     	pid_save=0;
+		strcpy(bg_status,"");
+		strcpy(bg_command,"");
+		
+  }
   return 0;
 }
 

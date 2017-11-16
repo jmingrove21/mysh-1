@@ -1,5 +1,4 @@
 #include "utils.h"
-
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <string.h>
@@ -10,21 +9,17 @@ void mysh_parse_command(const char* command,
 {
   char buf[4096];
   strcpy(buf, command);
-
+  
   char *saveptr = NULL;
   char *tok = strtok_r(buf, "|", &saveptr);
 
   int ti = 0;
-
   while (tok != NULL) {
     struct single_command* com = *commands + ti;
     parse_single_command(tok, &com->argc, &com->argv);
-
     ++ti;
-
     tok = strtok_r(NULL, "|", &saveptr);
   }
-
   *n_commands = ti;
 }
 
