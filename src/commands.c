@@ -193,7 +193,7 @@ void handler(int sig){
 void server(){
 	int server_sock,client_sock,len,rc;
 	int bytes_rec=0;
-	struct sockaddr_un server_sockaddr;
+	struct sockaddr_un server_sockaddr;//in sys/un.h
 	struct sockaddr_un client_sockaddr;
 	char buf[256];
 	int backlog=10;
@@ -202,8 +202,8 @@ void server(){
 	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
 
 	//create a unix domain stream socket
-	server_sock=socket(AF_UNIX,SOCK_STREAM,0);
-	if(server_sock==-1){
+	server_sock=socket(AF_UNIX,SOCK_STREAM,0);//type : use TCP
+	if(server_sock==-1){//success: new socket number, fail: -1
 		printf("SOCKET ERROR\n");
 			exit(1);
 	}
@@ -215,16 +215,16 @@ void server(){
 	len=sizeof(server_sockaddr);
 
 	unlink(SOCK_PATH);
-	rc=bind(server_sock,(struct sockaddr *) &server_sockaddr,len);
-	if(rc==-1){
+	rc=bind(server_sock,(struct sockaddr *) &server_sockaddr,len);//allocate socket addr
+	if(rc==-1){//success:0 fail:-1
 		printf("BIND ERROR\n");
 		close(server_sock);
 		exit(1);
 	}
 
 	//Listen for any client socket
-	rc=listen(server_sock,backlog);
-	if(rc==-1){
+	rc=listen(server_sock,backlog);//create queue for socket, size: backlog.use accept()->communication
+	if(rc==-1){//success:0 fail:1
 		printf("LISTEN ERROR\n");
 		close(server_sock);
 		exit(1);
@@ -233,25 +233,19 @@ void server(){
 
 	//accept an incoming connection
 	client_sock=accept(server_sock,(struct sockaddr*)&client_sockaddr,&len);
-	if(client_sock==-1){
+	//this accept will wait for the client to make a connection if there is no client connected to the socket's queue
+	if(client_sock==-1){//suceess : new socket number. fail:-1
 		printf("ACCEPT ERROR\n");
 		close(server_sock);
 		close(client_sock);
 		exit(1);
 	}
 
-	//get the name of the connected socket
-	len=sizeof(client_sockaddr);
-	rc=getpeername(client_sock,(struct sockaddr*)&client_sockaddr,&len);
-	if(rc==-1){
-		printf("GETPEERNAME ERROR\n");
-		close(server_sock);
-		close(client_sock);
-		exit(1);
-	}
-	else{
-		printf("Client socket filepath:%s\n",client_sockaddr.sun_path);
-	}
+	/*
+	 *  Do Something!!!!!!!!!!!!
+	 *
+	 *
+	 */
 
 	//read and print the data incoming on the connected socket
 	printf("waiting to read...\n");
@@ -265,23 +259,6 @@ void server(){
 	else{
 		printf("DATA RECEIVED = %s\n",buf);
 	}
-
-	//send data back to the connected socket
-	//need?
-	memset(buf,0,256);
-	strcpy(buf,DATA);
-	printf("sending data...\n");
-	rc=send(client_sock,buf,strlen(buf),0);
-	if(rc==-1){
-		printf("SEND ERROR\n");
-		close(server_sock);
-		close(client_sock);
-		exit(1);
-	}
-	else{
-		printf("Data sent!\n");
-	}
-
 	//close the sockets and exit
 	close(server_sock);
 	close(client_sock);
@@ -327,37 +304,16 @@ void client(){
 		exit(1);
 	}
 
-	//copy the data to the buffer and send it to the server socket
-	//need?
-	strcpy(buf,DATA1);
-	printf("Sending data...\n");
-	rc=send(client_sock,buf,strlen(buf),0);
-	if(rc==-1){
-		printf("SEND ERROR\n");
-		close(client_sock);
-		exit(1);
-	}
-	else{
-		printf("Data sent!\n");
-	}
+	/*
+	*
+	*  multithreading!!!
+	*  pthread! pthread! pthread_create no! not here!!!!!!!!!!!!!!!
+	*
+	*/
 
-	//read the data sent from the server and print it
-  //need?
-	printf("Waiting to recieve data...\n");
-	memset(buf,0,sizeof(buf));
-	if(rc==-1){
-		printf("RECV ERROR\n");
-		close(client_sock);
-		exit(1);
-	}
-	else{
-		printf("DATA RECEIVED=%s\n",buf);
-	}
 	//close the socket and exit
-  //need?fin
 	close(client_sock);
 	return 0;
 }
-
 
 
