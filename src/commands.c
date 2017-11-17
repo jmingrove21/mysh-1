@@ -10,15 +10,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include "commands.h"
 #include "built_in.h"
 #include "signal_handlers.h"
 
-#define SOCK_PATH "tpf_unix_sock.server"
-#define SERVER_PATH "ptf_unix_sock.server"
-#define CLIENT_PATH "tpf_unix_sock.client"
-#define DATA "Hello from server"
-#define DATA1 "Hello from Client"
 
 int sig_pid;//use running program+signal
 int pid_save;//save background pid
@@ -34,6 +30,8 @@ static struct built_in_command built_in_commands[] = {
 
 
 void handler(int sig);
+void server();
+void* client(void* command);
 static int is_built_in_command(const char* command_name)
 {
   static const int n_built_in_commands = sizeof(built_in_commands) / sizeof(built_in_commands[0]);
@@ -65,7 +63,9 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
       com->argc=com->argc-1;
    }
 
+	 printf("n_commands :%d\n",n_commands);
 	 built_in_pos=is_built_in_command(com->argv[0]);
+	 if(n_commands==1){
     if (built_in_pos != -1) {
       if (built_in_commands[built_in_pos].command_validate(com->argc, com->argv)) {
 	 if (built_in_commands[built_in_pos].command_do(com->argc, com->argv) != 0) {
@@ -81,74 +81,80 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 	 return 1;
     } else {
 
-
+		printf("tmp\n");
        int pid;
        int status=0;
        char str[5][50]={"/usr/local/bin","/usr/bin/","/bin/","/usr/sbin/","/sbin/"};
        char tmp_long_path[5][50];
        char long_path[50];
-       pid=fork();
-       if(pid<0){
-        perror("Cant't fork process!");
-       }
-       else if(pid==0){//child process running
-         if(execv(com->argv[0],com->argv)==-1){
-           for(int i=0;i<5;i++){
-             strcpy(tmp_long_path[i],str[i]);
-             strcat(tmp_long_path[i],com->argv[0]);
-             if(access(tmp_long_path[i],F_OK)==0){
-               strcpy(long_path,tmp_long_path[i]);
-               break;
-             }
-           }
-         }
-         if(background==1){//child process running in background
-          signal(SIGINT,SIG_IGN);
-			 if(pid_save==0){
-				 printf("[1]:%d\n",getpid());
-				 if(execv(long_path,com->argv)==-1){
-				    fprintf(stderr,"%s: command not found!\n",com->argv[0]);
-					 exit(0);
-				}else{}
-			 }else{
-				 printf("background already exist!!: [1]:%d\n",pid_save);
-				 exit(0);
-			 }
-         }
-         else{
-         }
-         if(execv(com->argv[0],com->argv)==-1){
-           if(execv(long_path,com->argv)==-1){
-              fprintf(stderr,"%s: command not found!\n",com->argv[0]);
-              exit(0);
-           }
-           else{
+		 
+  	       pid=fork();
+   	    if(pid<0){
+       		 perror("Cant't fork process!");
+      	 }
+          else if(pid==0){//child process running
+        		 if(execv(com->argv[0],com->argv)==-1){
+         	 for(int i=0;i<5;i++){
+            	 strcpy(tmp_long_path[i],str[i]);
+            	 strcat(tmp_long_path[i],com->argv[0]);
+            	 if(access(tmp_long_path[i],F_OK)==0){
+               	strcpy(long_path,tmp_long_path[i]);
+                break;
+            	 }
+          	 }
+        	   }
+            if(background==1){//child process running in background
+          	  signal(SIGINT,SIG_IGN);
+				  if(pid_save==0){
+					  printf("[1]:%d\n",getpid());
+				     if(execv(long_path,com->argv)==-1){
+				   	 fprintf(stderr,"%s: command not found!\n",com->argv[0]);
+					    exit(0);
+					  }else{}
+			 	  }else{
+				 	  printf("background already exist!!: [1]:%d\n",pid_save);
+					  exit(0);
+				  }
+        	   }
+         	else{
+        	   }
+        	   if(execv(com->argv[0],com->argv)==-1){
+          	  if(execv(long_path,com->argv)==-1){
+             	 fprintf(stderr,"%s: command not found!\n",com->argv[0]);
+             		 exit(0);
+          	  }
+          	  else{
                execv(long_path,com->argv);
            
-			  }
-		   }
-         else{
-				execv(com->argv[0],com->argv);
-         }
-       }else{//parent process running
-          if(background==1){
-				 if(pid_save==0){
-					 strcpy(bg_status,"RUNNING");
-				    signal(SIGCHLD,(void*)handler);
-					 pid_save=pid;
-					 strcpy(bg_command,com->argv[0]);
-		       }
-             background=0;
-				 return 0;
-          }else{
-				 	 sig_pid=pid;
-					 signal(SIGINT,(void*)catch_sigint);
-					 signal(SIGTSTP,(void*)catch_sigtstp);
-					 waitpid(sig_pid,&status,0);
-				 }
-       }
-  }
+			 	  }
+		  	   }
+        	   else{
+			     execv(com->argv[0],com->argv);
+        	   }
+       		}else{//parent process running
+          		if(background==1){
+					   if(pid_save==0){
+							 strcpy(bg_status,"RUNNING");
+				   		 signal(SIGCHLD,(void*)handler);
+							 pid_save=pid;
+					 		 strcpy(bg_command,com->argv[0]);
+		       	   }
+            		 background=0;
+				 		 return 0;
+            	}else{
+				 		 sig_pid=pid;
+						 signal(SIGINT,(void*)catch_sigint);
+						 signal(SIGTSTP,(void*)catch_sigtstp);
+						 waitpid(sig_pid,&status,0);
+					}
+            }
+		   
+       }//big else
+	 } else if(n_commands==2){
+		server(com);
+	 }
   }//n_command>0 fin
+	printf("before return 0 %d\n",getpid());
   return 0;
 }//function fin
 
@@ -165,7 +171,6 @@ void free_commands(int n_commands, struct single_command (*commands)[512])
 
     free(argv);
   }
-
   memset((*commands), 0, sizeof(struct single_command) * n_commands);
 }
 void handler(int sig){
@@ -190,19 +195,23 @@ void handler(int sig){
 	}
 }
 
-void server(){
+void server(struct single_command (*command)[512]){
 	int server_sock,client_sock,len,rc;
 	int bytes_rec=0;
 	struct sockaddr_un server_sockaddr;//in sys/un.h
 	struct sockaddr_un client_sockaddr;
 	char buf[256];
 	int backlog=10;
+	struct single_command * com_f=(*command);
+	struct single_command * com_s=(*command+1);
 
+	printf("1 %s\n",com_f->argv[0]);
+	printf("2 %s\n",com_s->argv[0]);
 	memset(&server_sockaddr,0,sizeof(struct sockaddr_un));
 	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
 
 	//create a unix domain stream socket
-	server_sock=socket(AF_UNIX,SOCK_STREAM,0);//type : use TCP
+	server_sock=socket(PF_FILE,SOCK_STREAM,0);//type : use TCP
 	if(server_sock==-1){//success: new socket number, fail: -1
 		printf("SOCKET ERROR\n");
 			exit(1);
@@ -211,10 +220,14 @@ void server(){
 	//set up the unix sockaddr structure by using AF_UNIX for the family and giving it a filepath to bind to
 	//unlink the file so the bind will succeed, then bind to that file
 	server_sockaddr.sun_family=AF_UNIX;
-	strcpy(server_sockaddr.sun_path,SOCK_PATH);
+	strcpy(server_sockaddr.sun_path,"/tmp/test_server.dat");
 	len=sizeof(server_sockaddr);
 
-	unlink(SOCK_PATH);
+	unlink("/tmp/test_server.dat");
+
+
+	int option=1;
+	setsockopt(server_sock,SOL_SOCKET,SO_REUSEADDR,&option,sizeof(option));
 	rc=bind(server_sock,(struct sockaddr *) &server_sockaddr,len);//allocate socket addr
 	if(rc==-1){//success:0 fail:-1
 		printf("BIND ERROR\n");
@@ -231,50 +244,53 @@ void server(){
 	}
 	printf("socket listening...\n");
 
-	//accept an incoming connection
-	client_sock=accept(server_sock,(struct sockaddr*)&client_sockaddr,&len);
-	//this accept will wait for the client to make a connection if there is no client connected to the socket's queue
-	if(client_sock==-1){//suceess : new socket number. fail:-1
-		printf("ACCEPT ERROR\n");
-		close(server_sock);
-		close(client_sock);
-		exit(1);
-	}
+	pthread_t pit;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
 
-	/*
-	 *  Do Something!!!!!!!!!!!!
-	 *
-	 *
-	 */
+	pthread_create(&pit,&attr,client,(void*)com_f);
 
-	//read and print the data incoming on the connected socket
-	printf("waiting to read...\n");
-	bytes_rec=recv(client_sock,buf,sizeof(buf),0);
-	if(bytes_rec==-1){
-		printf("RECV ERROR\n");
-		close(server_sock);
-		close(client_sock);
-		exit(1);
+//	pthread_join(pit,NULL);
+	while(1){
+	  int client_sock_addr_size=sizeof(client_sockaddr);	
+
+	//allow connection with accept() when client requests connection 
+		client_sock=accept(server_sock,(struct sockaddr*)&client_sockaddr,&client_sock_addr_size);
+		if(client_sock==-1){
+			printf("ACCEPT ERROR\n");
+			close(server_sock);
+			close(client_sock);
+			exit(1);
+			continue;
+		}
+	
+		if(fork()==0){
+			dup2(client_sock,0);
+			close(client_sock);
+			evaluate_command(1,com_s);
+			exit(1);
+		}
 	}
-	else{
-		printf("DATA RECEIVED = %s\n",buf);
-	}
+	pthread_exit(0);
 	//close the sockets and exit
 	close(server_sock);
 	close(client_sock);
 	return 0;
 }
 
-void client(){
+void* client(void *command){
 	int client_sock,rc,len;
 	struct sockaddr_un server_sockaddr;
-	struct sockaddr_un client_sockaddr;
 	char buf[256];
+
+	struct single_command* com=(struct single_command*)command;
+
+	
+
 	memset(&server_sockaddr,0,sizeof(struct sockaddr_un));
-	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
    
 	//create a unix domain stream socket
-	client_sock=socket(AF_UNIX,SOCK_STREAM,0);
+	client_sock=socket(PF_FILE,SOCK_STREAM,0);
 	if(client_sock==-1){
 			printf("SOCKET ERROR\n");
 			exit(1);
@@ -282,37 +298,39 @@ void client(){
 
 	//set up the unix sockaddr structure by using AF_UNIX for the family and giving it a filepath to bind to. 
 	//unlink the file so the bind will succeed, then bind to that file
-	client_sockaddr.sun_family=AF_UNIX;
-	strcpy(client_sockaddr.sun_path,CLIENT_PATH);
-	len=sizeof(client_sockaddr);
+	server_sockaddr.sun_family=AF_UNIX;
+	strcpy(server_sockaddr.sun_path,"/tmp/test_server.dat");
+	len=sizeof(server_sockaddr);
 
-	unlink(CLIENT_PATH);
-	rc=bind(client_sock,(struct sockaddr*)&client_sockaddr,len);
-	if(rc==-1){
-		printf("BIND ERROR\n");
-		close(client_sock);
-		exit(1);
-	}
 
 	//set up the unix sockaddr structure for the server socket and connect to it
-	server_sockaddr.sun_family=AF_UNIX;
-	strcpy(server_sockaddr.sun_path,SERVER_PATH);
-	rc=connect(client_sock,(struct sockaddr*)&server_sockaddr,len);
-	if(rc==-1){
-		printf("CONNECT ERROR\n");
+
+  struct single_command tmp[512];
+  tmp[0]=*com;
+
+  rc=connect(client_sock,(struct sockaddr*)&server_sockaddr,len);
+		if(rc==-1){
+			printf("CONNECT ERROR\n");
+			close(client_sock);
+			exit(1);
+		}if(fork()==0){
+			printf("SUCCESS!\n");
+			close(STDIN_FILENO);
+			
+			int s=dup(STDOUT_FILENO);
+			dup2(client_sock,STDOUT_FILENO);
+			printf("test\n");
+			evaluate_command(1,&tmp);
+			printf("%d\n",getpid());
+			fflush(stdout);
+			close(STDOUT_FILENO);
+			dup2(s,STDOUT_FILENO);
+			wait(NULL);
+			exit(1);
 		close(client_sock);
-		exit(1);
-	}
+		}
+	pthread_exit(0);
 
-	/*
-	*
-	*  multithreading!!!
-	*  pthread! pthread! pthread_create no! not here!!!!!!!!!!!!!!!
-	*
-	*/
-
-	//close the socket and exit
-	close(client_sock);
 	return 0;
 }
 
