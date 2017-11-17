@@ -63,14 +63,13 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
       com->argc=com->argc-1;
    }
 
-	 printf("n_commands :%d\n",n_commands);
 	 built_in_pos=is_built_in_command(com->argv[0]);
 	 if(n_commands==1){
     if (built_in_pos != -1) {
       if (built_in_commands[built_in_pos].command_validate(com->argc, com->argv)) {
 	 if (built_in_commands[built_in_pos].command_do(com->argc, com->argv) != 0) {
 	 fprintf(stderr, "%s: Error occurs\n", com->argv[0]);
-        }
+        } 
       } else {
         fprintf(stderr, "%s: Invalid arguments\n", com->argv[0]);
         return -1;
@@ -81,7 +80,6 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 	 return 1;
     } else {
 
-		printf("tmp\n");
        int pid;
        int status=0;
        char str[5][50]={"/usr/local/bin","/usr/bin/","/bin/","/usr/sbin/","/sbin/"};
@@ -154,7 +152,6 @@ int evaluate_command(int n_commands, struct single_command (*commands)[512])
 		server(com);
 	 }
   }//n_command>0 fin
-	printf("before return 0 %d\n",getpid());
   return 0;
 }//function fin
 
@@ -205,8 +202,6 @@ void server(struct single_command (*command)[512]){
 	struct single_command * com_f=(*command);
 	struct single_command * com_s=(*command+1);
 
-	printf("1 %s\n",com_f->argv[0]);
-	printf("2 %s\n",com_s->argv[0]);
 	memset(&server_sockaddr,0,sizeof(struct sockaddr_un));
 	memset(&client_sockaddr,0,sizeof(struct sockaddr_un));
 
@@ -249,8 +244,7 @@ void server(struct single_command (*command)[512]){
 	pthread_attr_init(&attr);
 
 	pthread_create(&pit,&attr,client,(void*)com_f);
-
-//	pthread_join(pit,NULL);
+	pthread_join(pit,NULL);
 	while(1){
 	  int client_sock_addr_size=sizeof(client_sockaddr);	
 
@@ -264,18 +258,20 @@ void server(struct single_command (*command)[512]){
 			continue;
 		}
 	
+
 		if(fork()==0){
 			dup2(client_sock,0);
 			close(client_sock);
 			evaluate_command(1,com_s);
-			exit(1);
+			exit(0);
 		}
+	//I want to put pthread_exit, but this action occers to kill mysh
 	}
-	pthread_exit(0);
 	//close the sockets and exit
 	close(server_sock);
 	close(client_sock);
-	return 0;
+	pthread_exit(0);
+	return 0;//return 0 suceed? I think so..
 }
 
 void* client(void *command){
@@ -317,16 +313,12 @@ void* client(void *command){
 			printf("SUCCESS!\n");
 			close(STDIN_FILENO);
 			
-			int s=dup(STDOUT_FILENO);
 			dup2(client_sock,STDOUT_FILENO);
 			printf("test\n");
 			evaluate_command(1,&tmp);
-			printf("%d\n",getpid());
-			fflush(stdout);
 			close(STDOUT_FILENO);
-			dup2(s,STDOUT_FILENO);
+		//	dup2(s,STDOUT_FILENO);
 			wait(NULL);
-			exit(1);
 		close(client_sock);
 		}
 	pthread_exit(0);
